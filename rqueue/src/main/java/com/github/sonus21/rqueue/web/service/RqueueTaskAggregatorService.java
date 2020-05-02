@@ -35,6 +35,8 @@ import com.github.sonus21.rqueue.web.dao.RqueueQStatsDao;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +66,7 @@ public class RqueueTaskAggregatorService
   private ThreadPoolTaskScheduler taskExecutor;
   private Map<String, QueueEvents> queueNameToEvents;
   private BlockingQueue<QueueEvents> queue;
+  private List<EventAggregator> eventAggregators = new ArrayList<>();
 
   @Autowired
   public RqueueTaskAggregatorService(
@@ -97,7 +100,9 @@ public class RqueueTaskAggregatorService
       int threadCount = rqueueWebConfig.getStatsAggregatorThreadCount();
       this.taskExecutor = ThreadUtils.createTaskScheduler(threadCount, "RqueueTaskAggregator-", 30);
       for (int i = 0; i < threadCount; i++) {
-        this.taskExecutor.submit(new EventAggregator());
+        EventAggregator eventAggregator = new EventAggregator();
+        this.taskExecutor.submit(eventAggregator);
+        this.eventAggregators.add(eventAggregator);
       }
       lifecycleMgr.notifyAll();
     }
@@ -107,6 +112,15 @@ public class RqueueTaskAggregatorService
   public void stop() {
     log.info("Stopping task aggregation");
     synchronized (lifecycleMgr) {
+      int size = 0;
+      if (!CollectionUtils.isEmpty(queueNameToEvents)) {
+        Collection<QueueEvents> queueEvents = queueNameToEvents.values();
+        size = queueEvents.size();
+        queue.addAll(queueEvents);
+      }
+      for (int i = 0; i < Math.min(size, eventAggregators.size()); i++) {
+        eventAggregators.get(i).run();
+      }
       if (this.taskExecutor != null) {
         this.taskExecutor.shutdown();
       }

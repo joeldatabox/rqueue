@@ -262,6 +262,7 @@ public class RqueueMessageListenerContainer
     ThreadPoolTaskExecutor threadPoolTaskExecutor = new ThreadPoolTaskExecutor();
     threadPoolTaskExecutor.setThreadNamePrefix(
         name != null ? name + "-" : DEFAULT_THREAD_NAME_PREFIX);
+    threadPoolTaskExecutor.setBeanName(DEFAULT_THREAD_NAME_PREFIX);
     ThreadCount threadCount =
         ThreadUtils.getThreadCount(
             onlySpinningThread, getRegisteredQueues().size(), getWorkersCount());

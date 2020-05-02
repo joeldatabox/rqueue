@@ -25,6 +25,7 @@ public class ThreadUtils {
   public static ThreadPoolTaskScheduler createTaskScheduler(
       int poolSize, String threadPrefix, int terminationTime) {
     ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+    scheduler.setBeanName(threadPrefix.substring(0, threadPrefix.length() - 1));
     scheduler.setPoolSize(poolSize);
     scheduler.setThreadNamePrefix(threadPrefix);
     scheduler.setAwaitTerminationSeconds(terminationTime);
