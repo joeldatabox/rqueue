@@ -60,7 +60,7 @@ public class RqueueTaskAggregatorService
   private final RqueueQStatsDao rqueueQStatsDao;
   private final Object lifecycleMgr = new Object();
   private boolean running = false;
-  private boolean stopped = false;
+  private volatile boolean stopped = false;
   private ThreadPoolTaskScheduler taskExecutor;
   private Map<String, QueueEvents> queueNameToEvents;
   private BlockingQueue<QueueEvents> queue;
@@ -77,6 +77,7 @@ public class RqueueTaskAggregatorService
 
   @Override
   public void destroy() throws Exception {
+    log.info("Destroying task aggregator");
     stop();
     if (this.taskExecutor != null) {
       this.taskExecutor.destroy();
@@ -85,6 +86,7 @@ public class RqueueTaskAggregatorService
 
   @Override
   public void start() {
+    log.info("Starting task aggregation");
     synchronized (lifecycleMgr) {
       running = true;
       if (!rqueueWebConfig.isCollectListenerStats()) {
@@ -103,6 +105,7 @@ public class RqueueTaskAggregatorService
 
   @Override
   public void stop() {
+    log.info("Stopping task aggregation");
     synchronized (lifecycleMgr) {
       if (this.taskExecutor != null) {
         this.taskExecutor.shutdown();

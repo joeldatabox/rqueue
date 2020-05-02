@@ -17,10 +17,12 @@
 package com.github.sonus21.rqueue.listener;
 
 import com.github.sonus21.rqueue.core.RqueueMessage;
+import com.github.sonus21.rqueue.utils.Constants;
 import com.github.sonus21.rqueue.utils.TimeUtils;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -41,7 +43,10 @@ class MessagePoller extends MessageContainerBase implements Runnable {
   }
 
   private RqueueMessage getMessage() {
-    return getRqueueMessageTemplate().pop(queueName, queueDetail.getVisibilityTimeout());
+    RqueueMessage message =
+        getRqueueMessageTemplate().pop(queueName, queueDetail.getVisibilityTimeout());
+    semaphore.release();
+    return message;
   }
 
   private void enqueueTask(RqueueMessage message) {
@@ -58,24 +63,29 @@ class MessagePoller extends MessageContainerBase implements Runnable {
   public void run() {
     log.debug("Running Queue {}", queueName);
     while (isQueueActive(queueName)) {
+      boolean acquired = false;
       try {
-        semaphore.acquire();
-        RqueueMessage message = getMessage();
-        log.debug("Queue: {} Fetched Msg {}", queueName, message);
-        if (message != null) {
-          enqueueTask(message);
-        } else {
-          TimeUtils.sleepLog(getPollingInterval(), false);
-        }
+        acquired = semaphore.tryAcquire(Constants.MIN_DELAY, TimeUnit.MILLISECONDS);
       } catch (Exception e) {
-        log.warn(
-            "Message listener failed for the queue {}, it will be retried in {} Ms",
-            queueName,
-            getBackOffTime(),
-            e);
-        TimeUtils.sleepLog(getBackOffTime(), false);
-      } finally {
-        semaphore.release();
+        log.warn("Exception {}", e.getMessage(), e);
+      }
+      if (acquired && isQueueActive(queueName)) {
+        try {
+          RqueueMessage message = getMessage();
+          log.debug("Queue: {} Fetched Msg {}", queueName, message);
+          if (message != null) {
+            enqueueTask(message);
+          } else {
+            TimeUtils.sleepLog(getPollingInterval(), false);
+          }
+        } catch (Exception e) {
+          log.warn(
+              "Message listener failed for the queue {}, it will be retried in {} Ms",
+              queueName,
+              getBackOffTime(),
+              e);
+          TimeUtils.sleepLog(getBackOffTime(), false);
+        }
       }
     }
   }

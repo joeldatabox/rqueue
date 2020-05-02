@@ -311,7 +311,7 @@ abstract class MessageScheduler
       } catch (RedisSystemException e) {
         // no op
       } catch (Exception e) {
-        getLogger().warn("Task execution failed for queue: {}", queueName, e);
+        getLogger().warn("Task execution failed for the queue: {}", queueName, e);
       }
     }
   }

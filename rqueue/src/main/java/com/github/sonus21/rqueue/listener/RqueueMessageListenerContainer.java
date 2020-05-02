@@ -344,16 +344,16 @@ public class RqueueMessageListenerContainer
     log.info("Stopping Rqueue Message container");
     synchronized (lifecycleMgr) {
       running = false;
-      doStop();
       applicationEventPublisher.publishEvent(
           new QueueInitializationEvent("Container", registeredQueues, false));
+      doStop();
       lifecycleMgr.notifyAll();
     }
   }
 
   protected void doStop() {
     for (Map.Entry<String, Boolean> runningStateByQueue : queueRunningState.entrySet()) {
-      if (runningStateByQueue.getValue()) {
+      if (Boolean.TRUE.equals(runningStateByQueue.getValue())) {
         stopQueue(runningStateByQueue.getKey());
       }
     }
@@ -361,9 +361,8 @@ public class RqueueMessageListenerContainer
   }
 
   private void waitForRunningQueuesToStop() {
-    for (Map.Entry<String, Boolean> queueRunningState : queueRunningState.entrySet()) {
-      String queueName = queueRunningState.getKey();
-      QueueDetail queueDetail = getRegisteredQueues().get(queueName);
+    for (Map.Entry<String, Boolean> entry : queueRunningState.entrySet()) {
+      String queueName = entry.getKey();
       Future<?> queueSpinningThread = scheduledFutureByQueue.get(queueName);
       if (queueSpinningThread != null
           && !queueSpinningThread.isDone()
