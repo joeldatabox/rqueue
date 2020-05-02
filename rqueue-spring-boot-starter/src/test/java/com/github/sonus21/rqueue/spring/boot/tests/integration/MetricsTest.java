@@ -25,7 +25,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import rqueue.test.tests.MetricTestBase;
+import com.github.sonus21.rqueue.test.tests.MetricTestBase;
 
 @SpringBootTest
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -33,7 +33,7 @@ import rqueue.test.tests.MetricTestBase;
 @Slf4j
 @TestPropertySource(
     properties = {
-      "auto.start.scheduler=false",
+      "rqueue.scheduler.auto.start=false",
       "spring.redis.port=6384",
       "mysql.db.name=test4",
       "rqueue.metrics.count.failure=true",
@@ -46,16 +46,16 @@ public class MetricsTest extends MetricTestBase {
 
   @Test
   public void delayedQueueStatus() throws TimedOutException {
-    this.delayedQueueStatus(redisTemplate);
+    this.verifyDelayedQueueStatus();
   }
 
   @Test
   public void metricStatus() throws TimedOutException {
-    this.metricStatus(redisTemplate);
+    this.verifyMetricStatus();
   }
 
   @Test
   public void countStatusTest() throws TimedOutException {
-    this.countStatus();
+    this.verifyCountStatus();
   }
 }
