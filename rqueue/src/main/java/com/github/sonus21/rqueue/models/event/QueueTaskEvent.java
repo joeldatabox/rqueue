@@ -19,8 +19,6 @@ package com.github.sonus21.rqueue.models.event;
 import com.github.sonus21.rqueue.core.RqueueMessage;
 import com.github.sonus21.rqueue.models.db.MessageMetadata;
 import com.github.sonus21.rqueue.models.db.TaskStatus;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
 import lombok.Getter;
 import org.springframework.context.ApplicationEvent;
 
@@ -30,7 +28,6 @@ public class QueueTaskEvent extends ApplicationEvent {
   private final TaskStatus status;
   private final RqueueMessage rqueueMessage;
   private final MessageMetadata messageMetadata;
-  private final LocalDate localDate;
 
   /**
    * Create a new QueueTaskEvent.
@@ -49,6 +46,5 @@ public class QueueTaskEvent extends ApplicationEvent {
     this.status = status;
     this.rqueueMessage = rqueueMessage;
     this.messageMetadata = messageMetadata;
-    this.localDate = LocalDate.now(ZoneOffset.UTC);
   }
 }

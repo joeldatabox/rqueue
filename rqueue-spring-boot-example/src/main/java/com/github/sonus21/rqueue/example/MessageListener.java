@@ -16,11 +16,8 @@
 
 package com.github.sonus21.rqueue.example;
 
-import static com.github.sonus21.rqueue.utils.Constants.ONE_MILLI;
-
 import com.github.sonus21.rqueue.annotation.RqueueListener;
-import com.github.sonus21.rqueue.utils.Constants;
-import com.github.sonus21.rqueue.utils.TimeUtils;
+import com.github.sonus21.rqueue.utils.TimeoutUtils;
 import java.util.Random;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,9 +41,14 @@ public class MessageListener {
     return random.nextInt(100) < percentageFailure;
   }
 
+  private void execute(String msg, Object any) {
+    log.info(msg, any);
+    TimeoutUtils.sleep(random.nextInt(2000));
+  }
+
   @RqueueListener(value = "${rqueue.simple.queue}", active = "false")
   public void consumeMessage(String message) {
-    log.info("simple: {}, {}", message, message.getClass());
+    execute("simple: {}", message);
   }
 
   @RqueueListener(
@@ -55,10 +57,8 @@ public class MessageListener {
       numRetries = "${rqueue.delay.queue.retries}",
       visibilityTimeout = "60*60*1000")
   public void onMessage(String message) {
-    log.info("delay: {}", message);
+    execute("delay: {}", message);
     if (shouldFail()) {
-      TimeUtils.sleep(Constants.SECONDS_IN_A_MINUTE * ONE_MILLI);
-      log.error("delay {}", message);
       throw new NullPointerException("Failing On Purpose " + message);
     }
   }
@@ -68,11 +68,10 @@ public class MessageListener {
       delayedQueue = "true",
       deadLetterQueue = "job-morgue",
       numRetries = "2")
-  public void onMessage(Job job) throws Exception {
+  public void onMessage(Job job) {
+    execute("job-queue: {}", job);
     if (shouldFail()) {
-      log.error("job-queue: {}", job);
-      throw new Exception("OMG!");
+      throw new IllegalStateException("OMG!" + job);
     }
-    log.info("job-queue: {}", job);
   }
 }

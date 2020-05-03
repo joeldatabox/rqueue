@@ -17,7 +17,7 @@
 package com.github.sonus21.rqueue.test.tests;
 
 import static com.github.sonus21.rqueue.core.support.RqueueMessageFactory.buildMessage;
-import static com.github.sonus21.rqueue.utils.TimeUtils.waitFor;
+import static com.github.sonus21.rqueue.utils.TimeoutUtils.waitFor;
 import static com.google.common.collect.Lists.newArrayList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

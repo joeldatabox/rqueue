@@ -18,7 +18,7 @@ package com.github.sonus21.rqueue.listener;
 
 import com.github.sonus21.rqueue.core.RqueueMessage;
 import com.github.sonus21.rqueue.utils.Constants;
-import com.github.sonus21.rqueue.utils.TimeUtils;
+import com.github.sonus21.rqueue.utils.TimeoutUtils;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
@@ -76,7 +76,7 @@ class MessagePoller extends MessageContainerBase implements Runnable {
           if (message != null) {
             enqueueTask(message);
           } else {
-            TimeUtils.sleepLog(getPollingInterval(), false);
+            TimeoutUtils.sleepLog(getPollingInterval(), false);
           }
         } catch (Exception e) {
           log.warn(
@@ -84,7 +84,7 @@ class MessagePoller extends MessageContainerBase implements Runnable {
               queueName,
               getBackOffTime(),
               e);
-          TimeUtils.sleepLog(getBackOffTime(), false);
+          TimeoutUtils.sleepLog(getBackOffTime(), false);
         }
       }
     }

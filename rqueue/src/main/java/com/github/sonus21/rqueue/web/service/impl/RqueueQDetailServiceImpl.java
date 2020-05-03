@@ -30,10 +30,11 @@ import com.github.sonus21.rqueue.models.enums.NavTab;
 import com.github.sonus21.rqueue.models.response.DataViewResponse;
 import com.github.sonus21.rqueue.models.response.RedisDataDetail;
 import com.github.sonus21.rqueue.utils.Constants;
+import com.github.sonus21.rqueue.utils.DateTimeUtils;
 import com.github.sonus21.rqueue.utils.QueueUtils;
 import com.github.sonus21.rqueue.utils.RedisUtils;
 import com.github.sonus21.rqueue.utils.StringUtils;
-import com.github.sonus21.rqueue.utils.TimeUtils;
+import com.github.sonus21.rqueue.utils.TimeoutUtils;
 import com.github.sonus21.rqueue.web.service.RqueueMessageMetadataService;
 import com.github.sonus21.rqueue.web.service.RqueueQDetailService;
 import com.github.sonus21.rqueue.web.service.RqueueSystemManagerService;
@@ -206,9 +207,10 @@ public class RqueueQDetailServiceImpl implements RqueueQDetailService {
       row.add(rqueueMessage.getId());
       row.add(rqueueMessage.toString());
       if (timeQueue) {
-        row.add(TimeUtils.millisToHumanRepresentation(rqueueMessage.getProcessAt() - currentTime));
+        row.add(
+            DateTimeUtils.milliToHumanRepresentation(rqueueMessage.getProcessAt() - currentTime));
       } else {
-        row.add(TimeUtils.millisToHumanRepresentation(score.longValue() - currentTime));
+        row.add(DateTimeUtils.milliToHumanRepresentation(score.longValue() - currentTime));
       }
       if (!deleted) {
         row.add(ActionType.DELETE);
@@ -238,7 +240,7 @@ public class RqueueQDetailServiceImpl implements RqueueQDetailService {
           row.add(ActionType.DELETE);
         }
       } else {
-        row.add(TimeUtils.formatMilliToString(rqueueMessage.getReEnqueuedAt()));
+        row.add(DateTimeUtils.formatMilliToString(rqueueMessage.getReEnqueuedAt()));
       }
       return row;
     }

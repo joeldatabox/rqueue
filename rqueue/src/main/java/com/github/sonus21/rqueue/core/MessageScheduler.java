@@ -34,12 +34,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -143,7 +139,7 @@ abstract class MessageScheduler
         Future<?> future = scheduledTaskDetail.getFuture();
         boolean completedOrCancelled = future.isCancelled() || future.isDone();
         if (!completedOrCancelled) {
-          scheduledTaskDetail.getFuture().cancel(true);
+          future.cancel(true);
         }
       }
     }
@@ -227,13 +223,12 @@ abstract class MessageScheduler
     if (!completedOrCancelled
         && existingDelay < MIN_DELAY
         && existingDelay > Constants.TASK_ALIVE_TIME) {
-      try {
-        submittedTask.get(Constants.DEFAULT_SCRIPT_EXECUTION_TIME, TimeUnit.MILLISECONDS);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      } catch (ExecutionException | TimeoutException | CancellationException e) {
-        getLogger().debug("{} task failed", scheduledTaskDetail, e);
-      }
+      ThreadUtils.waitForTermination(
+          getLogger(),
+          submittedTask,
+          Constants.DEFAULT_SCRIPT_EXECUTION_TIME,
+          "{} task failed",
+          scheduledTaskDetail);
     }
     // Run was succeeded or cancelled submit new one
     MessageMoverTask timerTask = new MessageMoverTask(queueName, zsetName);

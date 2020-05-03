@@ -28,13 +28,13 @@ import com.github.sonus21.rqueue.models.db.QueueStatistics;
 import com.github.sonus21.rqueue.models.db.TaskStatus;
 import com.github.sonus21.rqueue.models.event.QueueTaskEvent;
 import com.github.sonus21.rqueue.utils.Constants;
+import com.github.sonus21.rqueue.utils.DateTimeUtils;
 import com.github.sonus21.rqueue.utils.QueueUtils;
 import com.github.sonus21.rqueue.utils.ThreadUtils;
-import com.github.sonus21.rqueue.utils.TimeUtils;
+import com.github.sonus21.rqueue.utils.TimeoutUtils;
 import com.github.sonus21.rqueue.web.dao.RqueueQStatsDao;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
@@ -61,12 +62,12 @@ public class RqueueTaskAggregatorService
   private final RqueueLockManager rqueueLockManager;
   private final RqueueQStatsDao rqueueQStatsDao;
   private final Object lifecycleMgr = new Object();
-  private boolean running = false;
-  private volatile boolean stopped = false;
+  private volatile boolean running = false;
   private ThreadPoolTaskScheduler taskExecutor;
   private Map<String, QueueEvents> queueNameToEvents;
   private BlockingQueue<QueueEvents> queue;
-  private List<EventAggregator> eventAggregators = new ArrayList<>();
+  private final Object aggregatorLock = new Object();
+  private List<Future<?>> eventAggregatorTasks;
 
   @Autowired
   public RqueueTaskAggregatorService(
@@ -95,16 +96,59 @@ public class RqueueTaskAggregatorService
       if (!rqueueWebConfig.isCollectListenerStats()) {
         return;
       }
+      this.eventAggregatorTasks = new ArrayList<>();
       this.queueNameToEvents = new ConcurrentHashMap<>();
       this.queue = new LinkedBlockingDeque<>();
       int threadCount = rqueueWebConfig.getStatsAggregatorThreadCount();
       this.taskExecutor = ThreadUtils.createTaskScheduler(threadCount, "RqueueTaskAggregator-", 30);
       for (int i = 0; i < threadCount; i++) {
         EventAggregator eventAggregator = new EventAggregator();
-        this.taskExecutor.submit(eventAggregator);
-        this.eventAggregators.add(eventAggregator);
+        eventAggregatorTasks.add(this.taskExecutor.submit(eventAggregator));
       }
+      this.taskExecutor.scheduleAtFixedRate(
+          new SweepJob(), Duration.ofSeconds(rqueueWebConfig.getAggregateEventWaitTime()));
       lifecycleMgr.notifyAll();
+    }
+  }
+
+  class SweepJob implements Runnable {
+    @Override
+    public void run() {
+      if (log.isDebugEnabled()) {
+        log.debug("Checking pending events.");
+      }
+      synchronized (aggregatorLock) {
+        List<String> queuesToSwipe = new ArrayList<>();
+        for (Entry<String, QueueEvents> entry : queueNameToEvents.entrySet()) {
+          QueueEvents queueEvents = entry.getValue();
+          String queueName = entry.getKey();
+          if (processingRequired(queueEvents)) {
+            queue.add(queueEvents);
+            queuesToSwipe.add(queueName);
+          }
+        }
+        for (String queueName : queuesToSwipe) {
+          queueNameToEvents.remove(queueName);
+        }
+        aggregatorLock.notifyAll();
+      }
+    }
+  }
+
+  private boolean processingRequired(QueueEvents queueEvents) {
+    return queueEvents.processingRequired(
+        rqueueWebConfig.getAggregateEventWaitTime(), rqueueWebConfig.getAggregateEventCount());
+  }
+
+  private void waitForRunningTaskToStop() {
+    if (!CollectionUtils.isEmpty(eventAggregatorTasks)) {
+      for (Future<?> future : eventAggregatorTasks) {
+        ThreadUtils.waitForTermination(
+            log,
+            future,
+            rqueueWebConfig.getAggregateShutdownWaitTime(),
+            "Aggregator task termination");
+      }
     }
   }
 
@@ -112,19 +156,16 @@ public class RqueueTaskAggregatorService
   public void stop() {
     log.info("Stopping task aggregation");
     synchronized (lifecycleMgr) {
-      int size = 0;
-      if (!CollectionUtils.isEmpty(queueNameToEvents)) {
-        Collection<QueueEvents> queueEvents = queueNameToEvents.values();
-        size = queueEvents.size();
-        queue.addAll(queueEvents);
+      synchronized (aggregatorLock) {
+        if (!CollectionUtils.isEmpty(queueNameToEvents)) {
+          Collection<QueueEvents> queueEvents = queueNameToEvents.values();
+          queue.addAll(queueEvents);
+          queueEvents.clear();
+        }
+        aggregatorLock.notifyAll();
       }
-      for (int i = 0; i < Math.min(size, eventAggregators.size()); i++) {
-        eventAggregators.get(i).run();
-      }
-      if (this.taskExecutor != null) {
-        this.taskExecutor.shutdown();
-      }
-      stopped = true;
+      running = false;
+      waitForRunningTaskToStop();
       lifecycleMgr.notifyAll();
     }
   }
@@ -138,7 +179,7 @@ public class RqueueTaskAggregatorService
 
   @Override
   public void onApplicationEvent(QueueTaskEvent event) {
-    synchronized (event.getSource()) {
+    synchronized (aggregatorLock) {
       if (log.isTraceEnabled()) {
         log.trace("Event {}", event);
       }
@@ -149,8 +190,7 @@ public class RqueueTaskAggregatorService
       } else {
         queueEvents.addEvent(event);
       }
-      if (queueEvents.processingRequired(
-          rqueueWebConfig.getAggregateEventWaitTime(), rqueueWebConfig.getAggregateEventCount())) {
+      if (processingRequired(queueEvents)) {
         if (log.isTraceEnabled()) {
           log.trace("Adding events to the queue");
         }
@@ -159,6 +199,7 @@ public class RqueueTaskAggregatorService
       } else {
         queueNameToEvents.put(queueName, queueEvents);
       }
+      aggregatorLock.notifyAll();
     }
   }
 
@@ -185,15 +226,12 @@ public class RqueueTaskAggregatorService
     private void aggregate(QueueEvents events) {
       List<QueueTaskEvent> queueTaskEvents = events.taskEvents;
       QueueTaskEvent queueTaskEvent = queueTaskEvents.get(0);
-      LocalDate date = queueTaskEvent.getLocalDate();
       Map<LocalDate, TasksStat> localDateTasksStatMap = new HashMap<>();
-      TasksStat stat = new TasksStat();
       for (QueueTaskEvent event : queueTaskEvents) {
-        if (!date.equals(event.getLocalDate())) {
-          stat = localDateTasksStatMap.getOrDefault(event.getLocalDate(), new TasksStat());
-        }
+        LocalDate date = DateTimeUtils.localDateFromMilli(queueTaskEvent.getTimestamp());
+        TasksStat stat = localDateTasksStatMap.getOrDefault(date, new TasksStat());
         aggregate(event, stat);
-        localDateTasksStatMap.put(event.getLocalDate(), stat);
+        localDateTasksStatMap.put(date, stat);
       }
       String queueName = (String) queueTaskEvent.getSource();
       String queueStatKey = QueueUtils.getQueueStatKey(queueName);
@@ -201,10 +239,10 @@ public class RqueueTaskAggregatorService
       if (queueStatistics == null) {
         queueStatistics = new QueueStatistics(queueStatKey);
       }
-      LocalDate today = LocalDate.now(ZoneOffset.UTC);
+      LocalDate today = DateTimeUtils.today();
       queueStatistics.updateTime();
       for (Entry<LocalDate, TasksStat> entry : localDateTasksStatMap.entrySet()) {
-        queueStatistics.update(stat, entry.getKey().toString());
+        queueStatistics.update(entry.getValue(), entry.getKey().toString());
       }
       queueStatistics.pruneStats(today, rqueueWebConfig.getHistoryDay());
       rqueueQStatsDao.save(queueStatistics);
@@ -230,21 +268,23 @@ public class RqueueTaskAggregatorService
 
     @Override
     public void run() {
-      QueueEvents events;
-      while (!stopped) {
+      while (running) {
+        QueueEvents events = null;
         try {
           if (log.isTraceEnabled()) {
             log.trace("Aggregating queue stats");
           }
-          events = queue.poll();
-          if (events == null) {
-            TimeUtils.sleepLog(Constants.MIN_DELAY, false);
-          } else {
-            processEvents(events);
-          }
+          events = queue.take();
+          processEvents(events);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
         } catch (Exception e) {
+          // unprocessed events
+          if (events != null) {
+            queue.add(events);
+          }
           log.error("Error in aggregator job ", e);
-          TimeUtils.sleepLog(Constants.MIN_DELAY, false);
+          TimeoutUtils.sleepLog(Constants.MIN_DELAY, false);
         }
       }
     }

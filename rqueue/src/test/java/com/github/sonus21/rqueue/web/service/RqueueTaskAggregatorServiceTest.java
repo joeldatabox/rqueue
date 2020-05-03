@@ -34,9 +34,10 @@ import com.github.sonus21.rqueue.models.db.QueueStatisticsTest;
 import com.github.sonus21.rqueue.models.db.TaskStatus;
 import com.github.sonus21.rqueue.models.event.QueueTaskEvent;
 import com.github.sonus21.rqueue.utils.Constants;
-import com.github.sonus21.rqueue.utils.TimeUtils;
+import com.github.sonus21.rqueue.utils.DateTimeUtils;
+import com.github.sonus21.rqueue.utils.TimeoutUtils;
 import com.github.sonus21.rqueue.web.dao.RqueueQStatsDao;
-import java.time.LocalDate;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -63,6 +64,8 @@ public class RqueueTaskAggregatorServiceTest {
   public void initService() throws IllegalAccessException {
     doReturn(true).when(rqueueWebConfig).isCollectListenerStats();
     doReturn(1).when(rqueueWebConfig).getStatsAggregatorThreadCount();
+    doReturn(10).when(rqueueWebConfig).getAggregateEventWaitTime();
+    doReturn(100).when(rqueueWebConfig).getAggregateShutdownWaitTime();
     this.rqueueTaskAggregatorService.start();
     assertNotNull(
         FieldUtils.readField(this.rqueueTaskAggregatorService, "queueNameToEvents", true));
@@ -125,9 +128,15 @@ public class RqueueTaskAggregatorServiceTest {
       log.info("This test cannot be run at this time");
       return;
     }
+    String id = "__rq::q-stat::" + queueName;
+
     doReturn(180).when(rqueueWebConfig).getHistoryDay();
     doReturn(500).when(rqueueWebConfig).getAggregateEventCount();
-    doReturn(3600).when(rqueueWebConfig).getAggregateEventWaitTime();
+    doReturn(true)
+        .when(rqueueLockManager)
+        .acquireLock(
+            "__rq::lock::" + id,
+            Duration.ofSeconds(Constants.AGGREGATION_LOCK_DURATION_IN_SECONDS));
 
     QueueTaskEvent event = null;
     TasksStat tasksStat = new TasksStat();
@@ -170,12 +179,10 @@ public class RqueueTaskAggregatorServiceTest {
             })
         .when(rqueueQStatsDao)
         .save(any());
-    String id = "__rq::q-stat::" + queueName;
-    doReturn(true).when(rqueueLockManager).acquireLock(any(), any());
-    TimeUtils.waitFor(
+    TimeoutUtils.waitFor(
         () -> !queueStatistics.isEmpty(), 60 * Constants.ONE_MILLI, "stats to be saved.");
     QueueStatistics statistics = queueStatistics.get(0);
-    String date = LocalDate.now(ZoneOffset.UTC).toString();
+    String date = DateTimeUtils.today().toString();
     assertEquals(statistics.getId(), id);
     QueueStatisticsTest.validate(statistics, 1);
     QueueStatisticsTest.checkNonNull(statistics, date);
@@ -188,7 +195,6 @@ public class RqueueTaskAggregatorServiceTest {
 
   @After
   public void clean() throws Exception {
-    rqueueTaskAggregatorService.stop();
     rqueueTaskAggregatorService.destroy();
   }
 }

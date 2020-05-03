@@ -31,11 +31,8 @@ import com.github.sonus21.rqueue.web.service.RqueueMessageMetadataService;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.BeanNameAware;
 import org.springframework.beans.factory.DisposableBean;
@@ -365,17 +362,12 @@ public class RqueueMessageListenerContainer
     for (Map.Entry<String, Boolean> entry : queueRunningState.entrySet()) {
       String queueName = entry.getKey();
       Future<?> queueSpinningThread = scheduledFutureByQueue.get(queueName);
-      if (queueSpinningThread != null
-          && !queueSpinningThread.isDone()
-          && !queueSpinningThread.isCancelled()) {
-        try {
-          queueSpinningThread.get(getMaxWorkerWaitTime(), TimeUnit.MILLISECONDS);
-        } catch (ExecutionException | TimeoutException e) {
-          log.warn("An exception occurred while stopping queue '{}'", queueName, e);
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
-        }
-      }
+      ThreadUtils.waitForTermination(
+          log,
+          queueSpinningThread,
+          getMaxWorkerWaitTime(),
+          "An exception occurred while stopping queue '{}'",
+          queueName);
     }
   }
 

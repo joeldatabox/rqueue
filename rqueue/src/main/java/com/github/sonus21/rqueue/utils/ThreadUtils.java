@@ -17,6 +17,13 @@
 package com.github.sonus21.rqueue.utils;
 
 import com.github.sonus21.rqueue.models.ThreadCount;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import org.slf4j.Logger;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 public class ThreadUtils {
@@ -39,5 +46,37 @@ public class ThreadUtils {
     int corePoolSize = onlySpinning ? queueSize : queueSize + queueSize;
     int maxPoolSize = onlySpinning ? queueSize : queueSize + maxWorkersRequired;
     return new ThreadCount(corePoolSize, maxPoolSize);
+  }
+
+  private static void waitForShutdown(
+      Logger log, Future<?> future, long waitTimeInMillis, String msg, Object... msgParams) {
+    boolean completedOrCancelled = future.isCancelled() || future.isDone();
+    if (completedOrCancelled) {
+      return;
+    }
+    try {
+      future.get(waitTimeInMillis, TimeUnit.MILLISECONDS);
+    } catch (ExecutionException | TimeoutException | CancellationException e) {
+      log.debug(msg, msgParams, e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+  }
+
+  public static void waitForTermination(
+      Logger log, Future<?> future, long waitTimeInMillis, String msg, Object... msgParams) {
+    if (future == null) {
+      return;
+    }
+    boolean completedOrCancelled = future.isCancelled() || future.isDone();
+    if (!completedOrCancelled) {
+      if (future instanceof ScheduledFuture) {
+        ScheduledFuture f = (ScheduledFuture) future;
+        if (f.getDelay(TimeUnit.MILLISECONDS) > Constants.MIN_DELAY) {
+          return;
+        }
+      }
+    }
+    waitForShutdown(log, future, waitTimeInMillis, msg, msgParams);
   }
 }

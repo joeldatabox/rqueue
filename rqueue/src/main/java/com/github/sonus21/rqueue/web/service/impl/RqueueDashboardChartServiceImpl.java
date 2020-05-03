@@ -27,6 +27,7 @@ import com.github.sonus21.rqueue.models.enums.ChartDataType;
 import com.github.sonus21.rqueue.models.request.ChartDataRequest;
 import com.github.sonus21.rqueue.models.response.ChartDataResponse;
 import com.github.sonus21.rqueue.utils.Constants;
+import com.github.sonus21.rqueue.utils.DateTimeUtils;
 import com.github.sonus21.rqueue.utils.QueueUtils;
 import com.github.sonus21.rqueue.utils.StringUtils;
 import com.github.sonus21.rqueue.web.dao.RqueueQStatsDao;
@@ -34,7 +35,6 @@ import com.github.sonus21.rqueue.web.service.RqueueDashboardChartService;
 import com.github.sonus21.rqueue.web.service.RqueueSystemManagerService;
 import java.io.Serializable;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -134,7 +134,7 @@ public class RqueueDashboardChartServiceImpl implements RqueueDashboardChartServ
       List<ChartDataType> chartDataTypeList,
       int maxRequired) {
     MinMax<Integer> jobRunTime = new MinMax<>(Integer.MAX_VALUE, 0);
-    LocalDate today = LocalDate.now(ZoneOffset.UTC);
+    LocalDate today = DateTimeUtils.today();
     Map<Integer, TasksStat> idToTasksStat = new HashMap<>();
     for (QueueStatistics queueStatistics : queueStatisticsList) {
       for (ChartDataType status : chartDataTypeList) {

@@ -16,7 +16,7 @@
 
 package com.github.sonus21.rqueue.web.view;
 
-import com.github.sonus21.rqueue.utils.TimeUtils;
+import com.github.sonus21.rqueue.utils.DateTimeUtils;
 import org.jtwig.functions.FunctionRequest;
 import org.jtwig.functions.SimpleJtwigFunction;
 
@@ -30,6 +30,6 @@ public class DateTimeFunction extends SimpleJtwigFunction {
   @Override
   public Object execute(FunctionRequest request) {
     Long milli = (Long) request.getArguments().get(0);
-    return TimeUtils.formatMilliToString(milli);
+    return DateTimeUtils.formatMilliToString(milli);
   }
 }

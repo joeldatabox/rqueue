@@ -17,7 +17,7 @@
 package com.github.sonus21.rqueue.spring.boot.tests.integration;
 
 import static com.github.sonus21.rqueue.core.support.RqueueMessageFactory.buildMessage;
-import static com.github.sonus21.rqueue.utils.TimeUtils.waitFor;
+import static com.github.sonus21.rqueue.utils.TimeoutUtils.waitFor;
 
 import com.github.sonus21.rqueue.core.ProcessingMessageScheduler;
 import com.github.sonus21.rqueue.core.RqueueMessage;
@@ -30,7 +30,7 @@ import com.github.sonus21.rqueue.test.TestUtils;
 import com.github.sonus21.rqueue.test.dto.Job;
 import com.github.sonus21.rqueue.test.service.ConsumedMessageService;
 import com.github.sonus21.rqueue.utils.QueueUtils;
-import com.github.sonus21.rqueue.utils.TimeUtils;
+import com.github.sonus21.rqueue.utils.TimeoutUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
@@ -108,7 +108,7 @@ public class ProcessingMessageSchedulerTest {
       rqueueMessageTemplate.addToZset(
           processingQueueName, buildMessage(job, jobQueueName, null, null), currentTime + delay);
     }
-    TimeUtils.sleep(maxDelay);
+    TimeoutUtils.sleep(maxDelay);
     waitFor(
         () -> 0 == messageSender.getAllMessages(jobQueueName).size(),
         30 * 1000L,

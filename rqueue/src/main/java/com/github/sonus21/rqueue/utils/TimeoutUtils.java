@@ -31,10 +31,9 @@ import java.util.function.BooleanSupplier;
  * throw TimeOutException. If postmortem method is provided then it will call that method before
  * throwing exception.
  */
-public class TimeUtils {
-  private static DateTimeFormatter simple = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
+public class TimeoutUtils {
 
-  private TimeUtils() {}
+  private TimeoutUtils() {}
 
   public static void waitFor(
       BooleanSupplier callback, long waitTimeInMilliSeconds, String description)
@@ -86,41 +85,5 @@ public class TimeUtils {
         e.printStackTrace();
       }
     }
-  }
-
-  public static String millisToHumanRepresentation(long milli) {
-    String prefix = "";
-    if (milli < 0) {
-      prefix = "-";
-    }
-    long seconds = milli / 1000;
-    long minutes = seconds / Constants.SECONDS_IN_A_MINUTE;
-    seconds = seconds % Constants.SECONDS_IN_A_MINUTE; // remaining seconds
-    long hours = minutes / Constants.MINUTES_IN_AN_HOUR;
-    minutes = minutes % Constants.MINUTES_IN_AN_HOUR; // remaining minutes
-    long days = hours / Constants.HOURS_IN_A_DAY;
-    hours = hours % Constants.HOURS_IN_A_DAY; // remaining hours
-    String s;
-    if (days != 0) {
-      s = days + " Day, " + hours + " Hours, " + minutes + " Minutes, " + seconds + " Seconds.";
-    } else {
-      if (hours != 0) {
-        s = hours + " Hours, " + minutes + " Minutes, " + seconds + " Seconds.";
-      } else if (minutes != 0) {
-        s = minutes + " Minutes, " + seconds + " Seconds.";
-      } else {
-        s = seconds + " Seconds.";
-      }
-    }
-    return prefix + s;
-  }
-
-  public static String formatMilliToString(Long milli) {
-    if (milli == null) {
-      return "";
-    }
-    Instant instant = Instant.ofEpochMilli(milli);
-    ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(instant, java.time.ZoneId.of("UTC"));
-    return zonedDateTime.format(simple);
   }
 }

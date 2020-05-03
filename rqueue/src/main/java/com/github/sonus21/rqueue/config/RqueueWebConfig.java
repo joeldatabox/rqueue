@@ -54,4 +54,7 @@ public class RqueueWebConfig {
 
   @Value("${rqueue.web.collect.statistic.aggregate.event.wait.time:60}")
   private int aggregateEventWaitTime;
+
+  @Value("${rqueue.web.collect.statistic.aggregate.shutdown.wait.time:500}")
+  private int aggregateShutdownWaitTime;
 }
