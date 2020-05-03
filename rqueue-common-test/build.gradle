@@ -1,5 +1,6 @@
 dependencies {
     compile project(":rqueue")
+    compile project(":rqueue-test-util")
 
     // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-prometheus
     compile group: 'io.micrometer', name: 'micrometer-registry-prometheus', version: "${microMeterVersion}"

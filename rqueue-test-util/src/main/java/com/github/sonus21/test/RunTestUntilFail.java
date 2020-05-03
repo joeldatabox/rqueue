@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.github.sonus21.rqueue.test;
+package com.github.sonus21.test;
 
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
@@ -25,8 +25,8 @@ import org.slf4j.Logger;
  * Use this class to run a JUnit test until it fails, a test can be retried for any number of times
  * based on the retryCount. {@link #RunTestUntilFail(Logger log, Integer retryCount, Runnable
  * failiureCallback)}. If retryCount is not provided then it 1st looks for {@link
- * ENVIRONMENT_VAR_NAME} into the system property then environment. If it's not available then it
- * defaults to the {@link DEFAULT_RETRY_COUNT}. log interface is not provided then output would be
+ * #ENVIRONMENT_VAR_NAME} into the system property then environment. If it's not available then it
+ * defaults to the {@link #DEFAULT_RETRY_COUNT}. log interface is not provided then output would be
  * printed on the console otherwise it will be logged using the log interface. A failureCallback can
  * be provided that would be called whenever a test fails.
  *

@@ -7,5 +7,5 @@ buildscript {
 
 dependencies {
     compile project(":rqueue")
-    testCompile project(":rqueue-test-common")
+    testCompile project(":rqueue-common-test")
 }

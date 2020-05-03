@@ -37,6 +37,7 @@ import com.github.sonus21.rqueue.utils.Constants;
 import com.github.sonus21.rqueue.utils.DateTimeUtils;
 import com.github.sonus21.rqueue.utils.TimeoutUtils;
 import com.github.sonus21.rqueue.web.dao.RqueueQStatsDao;
+import com.github.sonus21.test.RunTestUntilFail;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -46,11 +47,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
 
-@RunWith(MockitoJUnitRunner.StrictStubs.class)
 @Slf4j
 public class RqueueTaskAggregatorServiceTest {
   private RqueueQStatsDao rqueueQStatsDao = mock(RqueueQStatsDao.class);
@@ -60,12 +59,16 @@ public class RqueueTaskAggregatorServiceTest {
       new RqueueTaskAggregatorService(rqueueWebConfig, rqueueLockManager, rqueueQStatsDao);
   private String queueName = "test-queue";
 
+  @Rule public RunTestUntilFail retry = new RunTestUntilFail(log, 3, null);
+
   @Before
   public void initService() throws IllegalAccessException {
     doReturn(true).when(rqueueWebConfig).isCollectListenerStats();
     doReturn(1).when(rqueueWebConfig).getStatsAggregatorThreadCount();
-    doReturn(10).when(rqueueWebConfig).getAggregateEventWaitTime();
+    doReturn(100).when(rqueueWebConfig).getAggregateEventWaitTime();
     doReturn(100).when(rqueueWebConfig).getAggregateShutdownWaitTime();
+    doReturn(180).when(rqueueWebConfig).getHistoryDay();
+    doReturn(500).when(rqueueWebConfig).getAggregateEventCount();
     this.rqueueTaskAggregatorService.start();
     assertNotNull(
         FieldUtils.readField(this.rqueueTaskAggregatorService, "queueNameToEvents", true));
@@ -129,14 +132,19 @@ public class RqueueTaskAggregatorServiceTest {
       return;
     }
     String id = "__rq::q-stat::" + queueName;
-
-    doReturn(180).when(rqueueWebConfig).getHistoryDay();
-    doReturn(500).when(rqueueWebConfig).getAggregateEventCount();
     doReturn(true)
         .when(rqueueLockManager)
         .acquireLock(
             "__rq::lock::" + id,
             Duration.ofSeconds(Constants.AGGREGATION_LOCK_DURATION_IN_SECONDS));
+    List<QueueStatistics> queueStatistics = new ArrayList<>();
+    doAnswer(
+            invocation -> {
+              queueStatistics.add(invocation.getArgument(0));
+              return null;
+            })
+        .when(rqueueQStatsDao)
+        .save(any());
 
     QueueTaskEvent event = null;
     TasksStat tasksStat = new TasksStat();
@@ -171,14 +179,6 @@ public class RqueueTaskAggregatorServiceTest {
       addEvent(event, tasksStat, totalEvents < 500);
     }
 
-    List<QueueStatistics> queueStatistics = new ArrayList<>();
-    doAnswer(
-            invocation -> {
-              queueStatistics.add(invocation.getArgument(0));
-              return null;
-            })
-        .when(rqueueQStatsDao)
-        .save(any());
     TimeoutUtils.waitFor(
         () -> !queueStatistics.isEmpty(), 60 * Constants.ONE_MILLI, "stats to be saved.");
     QueueStatistics statistics = queueStatistics.get(0);

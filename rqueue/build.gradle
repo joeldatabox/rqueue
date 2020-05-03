@@ -20,4 +20,6 @@ dependencies {
     // https://mvnrepository.com/artifact/io.micrometer/micrometer-core
     compile "io.micrometer:micrometer-core:${microMeterVersion}", optional
     testCompile "io.lettuce:lettuce-core:${lettuceVersion}"
+    testCompile "io.lettuce:lettuce-core:${lettuceVersion}"
+    testCompile project(":rqueue-test-util")
 }
